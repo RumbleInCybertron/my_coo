@@ -142,7 +142,6 @@ class TaskPlanner:
                     return
         print(f"Task '{name}' not found.")
 
-
     def is_overdue(self, deadline):
         return datetime.strptime(deadline, "%Y-%m-%d %H:%M:%S") < datetime.now()
 
@@ -225,6 +224,44 @@ class TaskPlanner:
         for priority, count in priority_counts.items():
             print(f"- {priority}: {count}")
 
+    def filter_tasks(self, by="priority", value=None):
+        filtered_tasks = []
+        if by == "priority":
+            filtered_tasks = [task for task in self.tasks if task["priority"].lower() == value.lower()]
+        elif by == "category":
+            filtered_tasks = [task for task in self.tasks if task.get("category", "General").lower() == value.lower()]
+        elif by == "due_date":
+            now = datetime.now()
+            if value == "today":
+                filtered_tasks = [
+                    task for task in self.tasks if datetime.strptime(task["deadline"], "%Y-%m-%d %H:%M:%S").date() == now.date()
+                ]
+            elif value == "this_week":
+                week_start = now - timedelta(days=now.weekday())
+                week_end = week_start + timedelta(days=6)
+                filtered_tasks = [
+                    task for task in self.tasks
+                    if week_start.date()
+                    <= datetime.strptime(task["deadline"], "%Y-%m-%d %H:%M:%S").date()
+                    <= week_end.date()
+                ]
+            elif value == "this_month":
+                filtered_tasks = [
+                    task for task in self.tasks
+                    if datetime.strptime(task["deadline"], "%Y-%m-%d %H:%M:%S").month == now.month
+                ]
+
+        if not filtered_tasks:
+            print("No tasks found matching the filter criteria.")
+        else:
+            print("\nFiltered Tasks:")
+            for i, task in enumerate(filtered_tasks, start=1):
+                status = "✅" if task["status"] == "completed" else "❌"
+                overdue = " (Overdue)" if self.is_overdue(task["deadline"]) else ""
+                print(
+                    f"{i}. {task['name']} [Category: {task.get('category', 'General')}, Priority: {task.get('priority', 'Medium')}] "
+                    f"(Deadline: {task['deadline']}) - Status: {status}{overdue}"
+                )
 
 
 # Background thread to periodically check deadlines
@@ -276,24 +313,37 @@ if __name__ == "__main__":
             planner.list_tasks()
 
         elif choice == "5":
-            print("\nFilter by Priority Options:")
-            print("1. High")
-            print("2. Medium")
-            print("3. Low")
-            print("4. View All Tasks")
+            print("\nFilter Tasks Options:")
+            print("1. Filter by Priority")
+            print("2. Filter by Category")
+            print("3. Filter by Due Date (Today, This Week, This Month)")
             filter_choice = input("Choose an option: ")
 
             if filter_choice == "1":
-                planner.list_tasks(filter_priority="High")
+                priority = input("Enter priority to filter by (High, Medium, Low): ")
+                planner.filter_tasks(by="priority", value=priority)
+
             elif filter_choice == "2":
-                planner.list_tasks(filter_priority="Medium")
+                category = input("Enter category to filter by (e.g., Work, Personal): ")
+                planner.filter_tasks(by="category", value=category)
+
             elif filter_choice == "3":
-                planner.list_tasks(filter_priority="Low")
-            elif filter_choice == "4":
-                planner.list_tasks()
+                print("1. Due Today")
+                print("2. Due This Week")
+                print("3. Due This Month")
+                date_filter = input("Choose an option: ")
+                if date_filter == "1":
+                    planner.filter_tasks(by="due_date", value="today")
+                elif date_filter == "2":
+                    planner.filter_tasks(by="due_date", value="this_week")
+                elif date_filter == "3":
+                    planner.filter_tasks(by="due_date", value="this_month")
+                else:
+                    print("Invalid choice. Returning to main menu.")
+
             else:
-                print("Invalid choice. Showing all tasks.")
-                planner.list_tasks()
+                print("Invalid choice. Returning to main menu.")
+
 
         elif choice == "6":
             print("\nManaging Overdue Tasks...")
