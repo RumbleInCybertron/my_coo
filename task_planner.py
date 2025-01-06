@@ -193,6 +193,39 @@ class TaskPlanner:
                     return
         print(f"Overdue task '{name}' not found or is not overdue.")
 
+    def show_statistics(self):
+        total_tasks = len(self.tasks)
+        completed_tasks = len([task for task in self.tasks if task["status"] == "completed"])
+        pending_tasks = len([task for task in self.tasks if task["status"] == "pending"])
+        overdue_tasks = len([task for task in self.tasks if self.is_overdue(task["deadline"]) and task["status"] == "pending"])
+
+        # Category Breakdown
+        category_counts = {}
+        for task in self.tasks:
+            category = task.get("category", "General")
+            category_counts[category] = category_counts.get(category, 0) + 1
+
+        # Priority Breakdown
+        priority_counts = {"High": 0, "Medium": 0, "Low": 0}
+        for task in self.tasks:
+            priority = task.get("priority", "Medium")
+            if priority in priority_counts:
+                priority_counts[priority] += 1
+
+        # Display Statistics
+        print("\nTask Statistics:")
+        print(f"Total Tasks: {total_tasks}")
+        print(f"Completed Tasks: {completed_tasks}")
+        print(f"Pending Tasks: {pending_tasks}")
+        print(f"Overdue Tasks: {overdue_tasks}")
+        print("\nCategory Breakdown:")
+        for category, count in category_counts.items():
+            print(f"- {category}: {count}")
+        print("\nPriority Breakdown:")
+        for priority, count in priority_counts.items():
+            print(f"- {priority}: {count}")
+
+
 
 # Background thread to periodically check deadlines
 def start_deadline_checker(planner):
@@ -217,7 +250,8 @@ if __name__ == "__main__":
         print("4. View Tasks")
         print("5. Filter Tasks")
         print("6. Overdue Task Management")
-        print("7. Exit")
+        print("7. View Task Statistics")
+        print("8. Exit")
         choice = input("Choose an option: ")
 
         if choice == "1":
@@ -266,6 +300,9 @@ if __name__ == "__main__":
             planner.list_overdue_tasks()
 
         elif choice == "7":
+            planner.show_statistics()
+
+        elif choice == "8":
             print("Goodbye!")
             break
 
