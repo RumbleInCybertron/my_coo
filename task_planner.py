@@ -166,6 +166,34 @@ class TaskPlanner:
             timeout=10
         )
 
+    def list_overdue_tasks(self):
+        overdue_tasks = [task for task in self.tasks if self.is_overdue(task["deadline"]) and task["status"] == "pending"]
+
+        if not overdue_tasks:
+            print("No overdue tasks found.")
+        else:
+            print("\nOverdue Tasks:")
+            for i, task in enumerate(overdue_tasks, start=1):
+                print(
+                    f"{i}. {task['name']} [Category: {task.get('category', 'General')}, Priority: {task.get('priority', 'Medium')}] "
+                    f"(Deadline: {task['deadline']})"
+                )
+                
+    def reset_deadline(self, name, new_deadline):
+        for task in self.tasks:
+            if task["name"].lower() == name.lower() and self.is_overdue(task["deadline"]):
+                parsed_deadline = self.parse_deadline(new_deadline)
+                if parsed_deadline:
+                    task["deadline"] = parsed_deadline
+                    self.save_tasks()
+                    print(f"Deadline for '{name}' reset to {new_deadline}.")
+                    return
+                else:
+                    print("Invalid deadline format. Please try again.")
+                    return
+        print(f"Overdue task '{name}' not found or is not overdue.")
+
+
 # Background thread to periodically check deadlines
 def start_deadline_checker(planner):
     def periodic_check():
@@ -188,7 +216,8 @@ if __name__ == "__main__":
         print("3. Update Task")
         print("4. View Tasks")
         print("5. Filter Tasks")
-        print("6. Exit")
+        print("6. Overdue Task Management")
+        print("7. Exit")
         choice = input("Choose an option: ")
 
         if choice == "1":
@@ -233,6 +262,10 @@ if __name__ == "__main__":
                 planner.list_tasks()
 
         elif choice == "6":
+            print("\nManaging Overdue Tasks...")
+            planner.list_overdue_tasks()
+
+        elif choice == "7":
             print("Goodbye!")
             break
 
