@@ -1,3 +1,4 @@
+import os
 import json
 import time
 from datetime import datetime, timedelta
@@ -7,7 +8,14 @@ from plyer import notification
 class TaskPlanner:
     def __init__(self, file_path="tasks.json"):
         self.file_path = file_path
+        if not os.path.exists(self.file_path):
+            self.create_empty_tasks_file()
         self.tasks = self.load_tasks()
+        
+    def create_empty_tasks_file(self):
+        """Creates an empty tasks file if it doesn't exist."""
+        with open(self.file_path, "w") as file:
+            json.dump([], file)  # Assuming an empty list for tasks
 
     def load_tasks(self):
         try:
