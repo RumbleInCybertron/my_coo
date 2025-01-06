@@ -89,17 +89,31 @@ class TaskPlanner:
         self.save_tasks()
         print(f"Next occurrence of '{task['name']}' scheduled for {next_deadline.strftime('%Y-%m-%d %H:%M:%S')}.")
 
-    def list_tasks(self):
+    def list_tasks(self, filter_priority=None):
         if not self.tasks:
             print("No tasks available.")
         else:
+            # Filter tasks by priority if specified
+            tasks_to_display = (
+                [task for task in self.tasks if task["priority"].lower() == filter_priority.lower()]
+                if filter_priority else self.tasks
+            )
+            
+            # Sort tasks by priority and then by deadline
+            priority_order = {"High": 1, "Medium": 2, "Low": 3}
+            tasks_to_display.sort(
+                key=lambda x: (priority_order.get(x["priority"], 4), x["deadline"])
+            )
+            
             print("\nCurrent Tasks:")
-            for i, task in enumerate(self.tasks, start=1):
+            for i, task in enumerate(tasks_to_display, start=1):
                 status = "✅" if task["status"] == "completed" else "❌"
                 overdue = " (Overdue)" if self.is_overdue(task["deadline"]) else ""
                 recurrence = f" (Recurring: {task['recurrence']})" if task["recurrence"] else ""
-                print(f"{i}. {task['name']} [Category: {task.get('category', 'General')}, Priority: {task.get('priority', 'Medium')}] "
-                      f"(Deadline: {task['deadline']}) - Status: {status}{overdue}{recurrence}")
+                print(
+                    f"{i}. {task['name']} [Category: {task.get('category', 'General')}, Priority: {task.get('priority', 'Medium')}] "
+                    f"(Deadline: {task['deadline']}) - Status: {status}{overdue}{recurrence}"
+                )
 
     def update_task(self, name, field, value):
         for task in self.tasks:
@@ -171,9 +185,10 @@ if __name__ == "__main__":
         print("\nTask Planner Options:")
         print("1. Add Task")
         print("2. Complete Task")
-        print("3. Update- Task")
+        print("3. Update Task")
         print("4. View Tasks")
-        print("5. Exit")
+        print("5. Filter Tasks")
+        print("6. Exit")
         choice = input("Choose an option: ")
 
         if choice == "1":
@@ -198,6 +213,26 @@ if __name__ == "__main__":
             planner.list_tasks()
 
         elif choice == "5":
+            print("\nFilter by Priority Options:")
+            print("1. High")
+            print("2. Medium")
+            print("3. Low")
+            print("4. View All Tasks")
+            filter_choice = input("Choose an option: ")
+
+            if filter_choice == "1":
+                planner.list_tasks(filter_priority="High")
+            elif filter_choice == "2":
+                planner.list_tasks(filter_priority="Medium")
+            elif filter_choice == "3":
+                planner.list_tasks(filter_priority="Low")
+            elif filter_choice == "4":
+                planner.list_tasks()
+            else:
+                print("Invalid choice. Showing all tasks.")
+                planner.list_tasks()
+
+        elif choice == "6":
             print("Goodbye!")
             break
 
