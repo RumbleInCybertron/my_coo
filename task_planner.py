@@ -20,7 +20,6 @@ class TaskPlanner:
         
         # Load theme preference
         self.theme = self.load_theme()
-        self.apply_theme()        
         
         # Main Buttons
         self.add_task_button = tk.Button(master, text="Add Task", command=self.add_task_window)
@@ -34,8 +33,6 @@ class TaskPlanner:
         
         self.edit_task_button = tk.Button(master, text="Edit Task", command=self.edit_task_window)
         self.edit_task_button.pack(pady=10)
-        
-        self.start_notification_checker()
 
         self.view_tasks_button = tk.Button(master, text="View Tasks", command=self.view_tasks_window)
         self.view_tasks_button.pack(pady=10)
@@ -48,6 +45,10 @@ class TaskPlanner:
 
         self.exit_button = tk.Button(master, text="Exit", command=master.quit)
         self.exit_button.pack(pady=10)
+        
+        self.apply_theme()    
+            
+        self.start_notification_checker()
         
     # Theme Colors
     themes = {
@@ -63,7 +64,60 @@ class TaskPlanner:
             "button_bg": "#444444",
             "button_fg": "#ffffff",
         },
-    }    
+    }
+    
+    # Chart Styles
+    chart_styles = {
+        "light": {
+            "bg": "#ffffff",
+            "text": "#000000",
+            "grid": "#e0e0e0",
+            "line": "#1f77b4",
+            "bar": "#1f77b4",
+            "pie": ["#ff9999", "#66b3ff", "#99ff99"]
+        },
+        "dark": {
+            "bg": "#2c2c2c",
+            "text": "#ffffff",
+            "grid": "#444444",
+            "line": "#66b3ff",
+            "bar": "#66b3ff",
+            "pie": ["#ff6666", "#3399ff", "#33ff33"]
+        }
+    }
+    
+    def show_category_chart(self):
+        style = self.chart_styles[self.theme]
+        categories, counts = zip(*Counter(task[3] for task in self.db.get_tasks()).items())
+        plt.figure(figsize=(6, 4))
+        plt.bar(categories, counts, color=style["bar"])
+        plt.title("Tasks by Category", color=style["text"])
+        plt.xlabel("Category", color=style["text"])
+        plt.ylabel("Count", color=style["text"])
+        plt.xticks(color=style["text"])
+        plt.yticks(color=style["text"])
+        plt.gca().set_facecolor(style["bg"])
+        plt.gcf().set_facecolor(style["bg"])
+        plt.grid(color=style["grid"], linestyle="--", linewidth=0.5)
+        plt.tight_layout()
+        plt.show()
+
+    def show_priority_chart(self):
+        style = self.chart_styles[self.theme]
+        priorities, counts = zip(*Counter(task[4] for task in self.db.get_tasks()).items())
+        plt.figure(figsize=(6, 4))
+        plt.pie(
+            counts,
+            labels=priorities,
+            autopct='%1.1f%%',
+            startangle=140,
+            colors=style["pie"],
+            textprops={"color": style["text"]}
+        )
+        plt.title("Tasks by Priority", color=style["text"])
+        plt.gcf().set_facecolor(style["bg"])
+        plt.tight_layout()
+        plt.show()
     
     def apply_theme(self):
         """Apply the current theme to the application."""
@@ -78,6 +132,8 @@ class TaskPlanner:
             widget.configure(bg=theme["button_bg"], fg=theme["button_fg"])
         elif isinstance(widget, tk.Label):
             widget.configure(bg=theme["bg"], fg=theme["fg"])
+        elif isinstance(widget, tk.Entry):
+            widget.configure(bg=theme["bg"], fg=theme["fg"], insertbackground=theme["fg"])
         elif isinstance(widget, tk.Toplevel):
             widget.configure(bg=theme["bg"])
             for child_widget in widget.winfo_children():
@@ -276,27 +332,13 @@ class TaskPlanner:
         tk.Label(stats_window, text=f"Completed Tasks: {completed_tasks}", bg=theme["bg"], fg=theme["fg"]).pack(pady=5)
         tk.Label(stats_window, text=f"Pending Tasks: {pending_tasks}", bg=theme["bg"], fg=theme["fg"]).pack(pady=5)
 
-        def show_category_chart():
-            categories, counts = zip(*category_counts.items())
-            plt.figure(figsize=(6, 4))
-            plt.bar(categories, counts, color='skyblue')
-            plt.title("Tasks by Category")
-            plt.xlabel("Category")
-            plt.ylabel("Count")
-            plt.xticks(rotation=45)
-            plt.tight_layout()
-            plt.show()
+        tk.Button(
+            stats_window, text="Show Category Chart", command=self.show_category_chart, bg=theme["button_bg"], fg=theme["button_fg"]
+        ).pack(pady=10)
 
-        def show_priority_chart():
-            priorities, counts = zip(*priority_counts.items())
-            plt.figure(figsize=(6, 4))
-            plt.pie(counts, labels=priorities, autopct='%1.1f%%', startangle=140)
-            plt.title("Tasks by Priority")
-            plt.tight_layout()
-            plt.show()
-
-        tk.Button(stats_window, text="Show Category Chart", command=show_category_chart, bg=theme["button_bg"], fg=theme["button_fg"]).pack(pady=10)
-        tk.Button(stats_window, text="Show Priority Chart", command=show_priority_chart, bg=theme["button_bg"], fg=theme["button_fg"]).pack(pady=10)
+        tk.Button(
+            stats_window, text="Show Priority Chart", command=self.show_priority_chart, bg=theme["button_bg"], fg=theme["button_fg"]
+        ).pack(pady=10)
 
     def edit_task_window(self):
         edit_window = tk.Toplevel(self.master)
