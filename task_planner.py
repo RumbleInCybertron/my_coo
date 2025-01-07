@@ -18,6 +18,10 @@ class TaskPlanner:
         
         self.db = TaskDatabase()
         
+        # Load theme preference
+        self.theme = self.load_theme()
+        self.apply_theme()        
+        
         # Main Buttons
         self.add_task_button = tk.Button(master, text="Add Task", command=self.add_task_window)
         self.add_task_button.pack(pady=10)
@@ -38,9 +42,58 @@ class TaskPlanner:
 
         self.complete_task_button = tk.Button(master, text="Complete Task", command=self.complete_task_window)
         self.complete_task_button.pack(pady=10)
+        
+        self.toggle_theme_button = tk.Button(master, text="Toggle Dark Mode", command=self.toggle_theme)
+        self.toggle_theme_button.pack(pady=10)
 
         self.exit_button = tk.Button(master, text="Exit", command=master.quit)
         self.exit_button.pack(pady=10)
+        
+    # Theme Colors
+    themes = {
+        "light": {
+            "bg": "#ffffff",
+            "fg": "#000000",
+            "button_bg": "#f0f0f0",
+            "button_fg": "#000000",
+        },
+        "dark": {
+            "bg": "#2c2c2c",
+            "fg": "#ffffff",
+            "button_bg": "#444444",
+            "button_fg": "#ffffff",
+        },
+    }    
+    
+    def apply_theme(self):
+        """Apply the current theme to the application."""
+        theme = self.themes[self.theme]
+        self.master.configure(bg=theme["bg"])
+        for widget in self.master.winfo_children():
+            if isinstance(widget, tk.Button):
+                widget.configure(bg=theme["button_bg"], fg=theme["button_fg"])
+            elif isinstance(widget, tk.Label):
+                widget.configure(bg=theme["bg"], fg=theme["fg"])
+
+    def toggle_theme(self):
+        """Toggle between Light and Dark Mode."""
+        self.theme = "dark" if self.theme == "light" else "light"
+        self.apply_theme()
+        self.save_theme()
+
+    def save_theme(self):
+        """Save the current theme to a settings file."""
+        with open("settings.json", "w") as settings_file:
+            json.dump({"theme": self.theme}, settings_file)
+
+    def load_theme(self):
+        """Load the theme from the settings file or default to Light Mode."""
+        try:
+            with open("settings.json", "r") as settings_file:
+                settings = json.load(settings_file)
+                return settings.get("theme", "light")
+        except FileNotFoundError:
+            return "light"    
         
     def create_empty_tasks_file(self):
         """Creates an empty tasks file if it doesn't exist."""
