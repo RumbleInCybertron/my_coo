@@ -150,8 +150,14 @@ class TaskPlanner:
             category = category_combo.get() or "General"
             priority = priority_combo.get() or "Medium"
 
-            if task_name and deadline:
-                self.db.add_task(task_name, deadline, category, priority)
+            # Convert deadline using parse_deadline
+            parsed_deadline = self.parse_deadline(deadline)
+            if not parsed_deadline:
+                tk.Label(add_window, text="Invalid deadline format. Please try again.", fg="red", bg=theme["bg"]).pack(pady=5)
+                return
+
+            if task_name:
+                self.db.add_task(task_name, parsed_deadline, category, priority)
                 tk.Label(add_window, text="Task added successfully!", fg="green", bg=theme["bg"]).pack(pady=5)
                 add_window.after(1000, add_window.destroy)
             else:
@@ -377,9 +383,7 @@ class TaskPlanner:
                                 self.show_notification(f"Task Due Soon: {name}", f"Deadline: {deadline}")
                         except ValueError:
                             print(f"Invalid deadline format for task '{name}': {deadline}")
-                time.sleep(60) # Check every 60 seconds
-
-
+                time.sleep(60)
 
         notification_thread = threading.Thread(target=check_deadlines, daemon=True)
         notification_thread.start()    
@@ -389,14 +393,18 @@ class TaskPlanner:
         notification_window.title("Notification")
         notification_window.geometry("300x150")
 
-        tk.Label(notification_window, text=title, font=("Helvetica", 12, "bold")).pack(pady=10)
-        tk.Label(notification_window, text=message, wraplength=250).pack(pady=10)
+        theme = self.themes[self.theme]
+        notification_window.configure(bg=theme["bg"])
+
+        tk.Label(notification_window, text=title, font=("Helvetica", 12, "bold"), bg=theme["bg"], fg=theme["fg"]).pack(pady=10)
+        tk.Label(notification_window, text=message, wraplength=250, bg=theme["bg"], fg=theme["fg"]).pack(pady=10)
 
         # Close button to dismiss the notification
-        tk.Button(notification_window, text="Close", command=notification_window.destroy).pack(pady=10)
+        tk.Button(notification_window, text="Close", command=notification_window.destroy, bg=theme["button_bg"], fg=theme["button_fg"]).pack(pady=10)
 
         # Auto-close the notification after 5 seconds
         notification_window.after(5000, notification_window.destroy)
+
 
     def is_valid_deadline(self, deadline):
         try:
@@ -425,21 +433,30 @@ class TaskPlanner:
 
     def parse_deadline(self, deadline_input):
         try:
-            # For specific time (e.g., "2025-01-05 14:30")
+            # Check for absolute date-time format (e.g., "2025-01-05 14:30")
             if " " in deadline_input:
                 return datetime.strptime(deadline_input, "%Y-%m-%d %H:%M").strftime("%Y-%m-%d %H:%M:%S")
-            # For relative times like "5m", "2h"
-            elif deadline_input.endswith("m"):
-                minutes = int(deadline_input[:-1])
+            
+            # Check for relative times like "5m" (minutes) or "2h" (hours)
+            elif deadline_input.endswith("m"):  # Minutes
+                minutes = int(deadline_input[:-1])  # Remove "m" and convert to int
                 return (datetime.now() + timedelta(minutes=minutes)).strftime("%Y-%m-%d %H:%M:%S")
-            elif deadline_input.endswith("h"):
-                hours = int(deadline_input[:-1])
+            elif deadline_input.endswith("h"):  # Hours
+                hours = int(deadline_input[:-1])  # Remove "h" and convert to int
                 return (datetime.now() + timedelta(hours=hours)).strftime("%Y-%m-%d %H:%M:%S")
-            else:
-                # Default to full date (e.g., "2025-01-05")
+            
+            # Check for absolute date format (e.g., "2025-01-05")
+            elif "-" in deadline_input and ":" not in deadline_input:
                 return datetime.strptime(deadline_input, "%Y-%m-%d").strftime("%Y-%m-%d %H:%M:%S")
+            
+            # If none of the above, raise an error
+            else:
+                raise ValueError("Invalid deadline format.")
+        
         except ValueError:
             return None
+
+
 
     def complete_task(self, name):
         for task in self.db.get_tasks():
