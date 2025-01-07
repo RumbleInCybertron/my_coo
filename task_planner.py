@@ -8,17 +8,15 @@ import tkinter as tk
 from tkinter import ttk
 import matplotlib.pyplot as plt
 from collections import Counter
+import sqlite3
 
 class TaskPlanner:
-    def __init__(self, master, file_path="tasks.json"):
+    def __init__(self, master):
         self.master = master
         self.master.title("Task Planner")
         self.master.geometry("600x400")
         
-        self.file_path = file_path
-        if not os.path.exists(self.file_path):
-            self.create_empty_tasks_file()
-        self.tasks = self.load_tasks()
+        self.db = TaskDatabase()
         
         # Main Buttons
         self.add_task_button = tk.Button(master, text="Add Task", command=self.add_task_window)
@@ -49,16 +47,16 @@ class TaskPlanner:
         with open(self.file_path, "w") as file:
             json.dump([], file)  # Assuming an empty list for tasks
 
-    def load_tasks(self):
-        try:
-            with open(self.file_path, "r") as file:
-                return json.load(file)
-        except FileNotFoundError:
-            return []
+    # def load_tasks(self):
+    #     try:
+    #         with open(self.file_path, "r") as file:
+    #             return json.load(file)
+    #     except FileNotFoundError:
+    #         return []
 
     def save_tasks(self):
         with open(self.file_path, "w") as file:
-            json.dump(self.tasks, file, indent=4)
+            json.dump(self.db, file, indent=4)
             
     def add_task_window(self):
         add_window = tk.Toplevel(self.master)
@@ -89,19 +87,8 @@ class TaskPlanner:
             priority = priority_combo.get() or "Medium"
 
             if task_name and deadline:
-                self.tasks.append({
-                    "name": task_name,
-                    "deadline": deadline,
-                    "category": category,
-                    "priority": priority,
-                    "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                    "status": "pending"
-                })
-                self.save_tasks()
-                success_label = tk.Label(add_window, text="Task added successfully!", fg="green")
-                success_label.pack(pady=5)
-                
-                # Close the window after 1 second
+                self.db.add_task(task_name, deadline, category, priority)
+                tk.Label(add_window, text="Task added successfully!", fg="green").pack(pady=5)
                 add_window.after(1000, add_window.destroy)
             else:
                 tk.Label(add_window, text="Please fill in all required fields.", fg="red").pack(pady=5)
@@ -116,9 +103,10 @@ class TaskPlanner:
         task_list = tk.Listbox(view_window, width=80, height=20)
         task_list.pack(pady=10)
 
-        for task in self.tasks:
-            status = "✅" if task["status"] == "completed" else "❌"
-            task_list.insert(tk.END, f"{task['name']} (Priority: {task['priority']}, Deadline: {task['deadline']}) - Status: {status}")
+        tasks = self.db.get_tasks()
+        for task in tasks:
+            status = "✅" if task[5] == "completed" else "❌"
+            task_list.insert(tk.END, f"{task[1]} (Priority: {task[3]}, Deadline: {task[2]}) - Status: {status}")
 
     def complete_task_window(self):
         complete_window = tk.Toplevel(self.master)
@@ -131,13 +119,13 @@ class TaskPlanner:
 
         def mark_complete():
             task_name = task_name_entry.get()
-            for task in self.tasks:
-                if task["name"].lower() == task_name.lower():
-                    task["status"] = "completed"
-                    self.save_tasks()
-                    tk.Label(complete_window, text="Task marked as completed!").pack(pady=5)
+            for task in self.db.get_tasks():
+                task_id, name, deadline, category, priority, status, created_at = task
+                if name.lower() == task_name.lower() and status == "pending":
+                    self.db.update_task(task_id, "status", "completed")
+                    tk.Label(complete_window, text=f"Task '{task_name}' marked as completed!", fg="green").pack(pady=5)
                     return
-            tk.Label(complete_window, text="Task not found.", fg="red").pack(pady=5)
+            tk.Label(complete_window, text=f"Task '{task_name}' not found or already completed.", fg="red").pack(pady=5)
 
         tk.Button(complete_window, text="Mark Complete", command=mark_complete).pack(pady=10)
 
@@ -162,7 +150,7 @@ class TaskPlanner:
         task_list.pack(pady=10)
 
         def apply_filters():
-            filtered_tasks = self.tasks
+            filtered_tasks = self.db
             priority = priority_combo.get()
             category = category_combo.get()
             due_date = due_date_combo.get()
@@ -214,24 +202,21 @@ class TaskPlanner:
         tk.Button(filter_window, text="Apply Filters", command=apply_filters).pack(pady=10)
 
     def show_statistics_window(self):
-        # Create a new window for statistics
         stats_window = tk.Toplevel(self.master)
         stats_window.title("Task Statistics")
         stats_window.geometry("500x300")
 
-        # Calculate statistics
-        total_tasks = len(self.tasks)
-        completed_tasks = len([task for task in self.tasks if task["status"] == "completed"])
-        pending_tasks = len([task for task in self.tasks if task["status"] == "pending"])
-        category_counts = Counter(task.get("category", "General") for task in self.tasks)
-        priority_counts = Counter(task.get("priority", "Medium") for task in self.tasks)
+        tasks = self.db.get_tasks()
+        total_tasks = len(tasks)
+        completed_tasks = sum(1 for task in tasks if task[5] == "completed")
+        pending_tasks = sum(1 for task in tasks if task[5] == "pending")
+        category_counts = Counter(task[3] for task in tasks)  # task[3] is category
+        priority_counts = Counter(task[4] for task in tasks)  # task[4] is priority
 
-        # Display text-based statistics
         tk.Label(stats_window, text=f"Total Tasks: {total_tasks}").pack(pady=5)
         tk.Label(stats_window, text=f"Completed Tasks: {completed_tasks}").pack(pady=5)
         tk.Label(stats_window, text=f"Pending Tasks: {pending_tasks}").pack(pady=5)
 
-        # Create bar chart for tasks by category
         def show_category_chart():
             categories, counts = zip(*category_counts.items())
             plt.figure(figsize=(6, 4))
@@ -243,18 +228,17 @@ class TaskPlanner:
             plt.tight_layout()
             plt.show()
 
-        # Create pie chart for tasks by priority
         def show_priority_chart():
             priorities, counts = zip(*priority_counts.items())
             plt.figure(figsize=(6, 4))
-            plt.pie(counts, labels=priorities, autopct='%1.1f%%', startangle=140, colors=['gold', 'lightgreen', 'lightskyblue'])
+            plt.pie(counts, labels=priorities, autopct='%1.1f%%', startangle=140)
             plt.title("Tasks by Priority")
             plt.tight_layout()
             plt.show()
 
-        # Add buttons to display charts
         tk.Button(stats_window, text="Show Category Chart", command=show_category_chart).pack(pady=10)
         tk.Button(stats_window, text="Show Priority Chart", command=show_priority_chart).pack(pady=10)
+
 
     def edit_task_window(self):
         # Create a new window to edit tasks
@@ -269,7 +253,7 @@ class TaskPlanner:
         task_list.pack(pady=10)
 
         # Populate the listbox with tasks
-        for task in self.tasks:
+        for task in self.db.get_tasks():
             status = "✅" if task["status"] == "completed" else "❌"
             task_list.insert(
                 tk.END,
@@ -280,7 +264,7 @@ class TaskPlanner:
         def open_edit_form():
             try:
                 selected_index = task_list.curselection()[0]
-                selected_task = self.tasks[selected_index]
+                selected_task = self.db[selected_index]
 
                 # Create an edit form pre-filled with task details
                 form_window = tk.Toplevel(edit_window)
@@ -321,7 +305,7 @@ class TaskPlanner:
 
                     # Refresh the task list
                     task_list.delete(0, tk.END)
-                    for task in self.tasks:
+                    for task in self.db.get_tasks():
                         status = "✅" if task["status"] == "completed" else "❌"
                         task_list.insert(
                             tk.END,
@@ -342,15 +326,21 @@ class TaskPlanner:
         def check_deadlines():
             while True:
                 now = datetime.now()
-                for task in self.tasks:
-                    if task["status"] == "pending" and self.is_valid_deadline(task["deadline"]):
-                        deadline = datetime.strptime(task["deadline"], "%Y-%m-%d %H:%M:%S")
-                        time_left = (deadline - now).total_seconds()
-                        if time_left < 0:
-                            self.show_notification(f"Task Overdue: {task['name']}", f"Deadline was {task['deadline']}")
-                        elif 0 <= time_left <= 300:  # Due within 5 minutes
-                            self.show_notification(f"Task Due Soon: {task['name']}", f"Deadline: {task['deadline']}")
-                time.sleep(60)  # Check every 60 seconds
+                tasks = self.db.get_tasks()
+                for task in tasks:
+                    task_id, name, deadline, category, priority, status, created_at = task
+                    if status == "pending":
+                        try:
+                            deadline_dt = datetime.strptime(deadline, "%Y-%m-%d %H:%M:%S")
+                            time_left = (deadline_dt - now).total_seconds()
+                            if time_left < 0:
+                                self.show_notification(f"Task Overdue: {name}", f"Deadline was {deadline}")
+                            elif 0 <= time_left <= 300:  # Due within 5 minutes
+                                self.show_notification(f"Task Due Soon: {name}", f"Deadline: {deadline}")
+                        except ValueError:
+                            print(f"Invalid deadline format for task '{name}': {deadline}")
+                time.sleep(60) # Check every 60 seconds
+
 
 
         notification_thread = threading.Thread(target=check_deadlines, daemon=True)
@@ -384,7 +374,7 @@ class TaskPlanner:
             print("Invalid deadline format. Please try again.")
             return
 
-        self.tasks.append({
+        self.db.append({
             "name": name,
             "deadline": deadline,
             "category": category,
@@ -415,7 +405,7 @@ class TaskPlanner:
             return None
 
     def complete_task(self, name):
-        for task in self.tasks:
+        for task in self.db.get_tasks():
             if task["name"].lower() == name.lower():
                 if task["recurrence"]:
                     self.schedule_next_occurrence(task)
@@ -438,7 +428,7 @@ class TaskPlanner:
             print(f"Unknown recurrence type: {recurrence}")
             return
 
-        self.tasks.append({
+        self.db.append({
             "name": task["name"],
             "deadline": next_deadline.strftime("%Y-%m-%d %H:%M:%S"),
             "category": task["category"],
@@ -451,13 +441,13 @@ class TaskPlanner:
         print(f"Next occurrence of '{task['name']}' scheduled for {next_deadline.strftime('%Y-%m-%d %H:%M:%S')}.")
 
     def list_tasks(self, filter_priority=None):
-        if not self.tasks:
+        if not self.db:
             print("No tasks available.")
         else:
             # Filter tasks by priority if specified
             tasks_to_display = (
-                [task for task in self.tasks if task["priority"].lower() == filter_priority.lower()]
-                if filter_priority else self.tasks
+                [task for task in self.db.get_tasks() if task["priority"].lower() == filter_priority.lower()]
+                if filter_priority else self.db
             )
             
             # Sort tasks by priority and then by deadline
@@ -477,7 +467,7 @@ class TaskPlanner:
                 )
 
     def update_task(self, name, field, value):
-        for task in self.tasks:
+        for task in self.db.get_tasks():
             if task["name"].lower() == name.lower():
                 if field in task:
                     if field == "deadline":
@@ -508,7 +498,7 @@ class TaskPlanner:
 
     def check_deadlines(self):
         now = datetime.now()
-        for task in self.tasks:
+        for task in self.db.get_tasks():
             if task["status"] == "pending":
                 deadline = datetime.strptime(task["deadline"], "%Y-%m-%d %H:%M:%S")
                 time_left = (deadline - now).total_seconds()
@@ -527,7 +517,7 @@ class TaskPlanner:
         )
 
     def list_overdue_tasks(self):
-        overdue_tasks = [task for task in self.tasks if self.is_overdue(task["deadline"]) and task["status"] == "pending"]
+        overdue_tasks = [task for task in self.db.get_tasks() if self.is_overdue(task["deadline"]) and task["status"] == "pending"]
 
         if not overdue_tasks:
             print("No overdue tasks found.")
@@ -540,7 +530,7 @@ class TaskPlanner:
                 )
                 
     def reset_deadline(self, name, new_deadline):
-        for task in self.tasks:
+        for task in self.db.get_tasks():
             if task["name"].lower() == name.lower() and self.is_overdue(task["deadline"]):
                 parsed_deadline = self.parse_deadline(new_deadline)
                 if parsed_deadline:
@@ -554,20 +544,20 @@ class TaskPlanner:
         print(f"Overdue task '{name}' not found or is not overdue.")
 
     def show_statistics(self):
-        total_tasks = len(self.tasks)
-        completed_tasks = len([task for task in self.tasks if task["status"] == "completed"])
-        pending_tasks = len([task for task in self.tasks if task["status"] == "pending"])
-        overdue_tasks = len([task for task in self.tasks if self.is_overdue(task["deadline"]) and task["status"] == "pending"])
+        total_tasks = len(self.db)
+        completed_tasks = len([task for task in self.db.get_tasks() if task["status"] == "completed"])
+        pending_tasks = len([task for task in self.db.get_tasks() if task["status"] == "pending"])
+        overdue_tasks = len([task for task in self.db.get_tasks() if self.is_overdue(task["deadline"]) and task["status"] == "pending"])
 
         # Category Breakdown
         category_counts = {}
-        for task in self.tasks:
+        for task in self.db.get_tasks():
             category = task.get("category", "General")
             category_counts[category] = category_counts.get(category, 0) + 1
 
         # Priority Breakdown
         priority_counts = {"High": 0, "Medium": 0, "Low": 0}
-        for task in self.tasks:
+        for task in self.db.get_tasks():
             priority = task.get("priority", "Medium")
             if priority in priority_counts:
                 priority_counts[priority] += 1
@@ -588,27 +578,27 @@ class TaskPlanner:
     def filter_tasks(self, by="priority", value=None):
         filtered_tasks = []
         if by == "priority":
-            filtered_tasks = [task for task in self.tasks if task["priority"].lower() == value.lower()]
+            filtered_tasks = [task for task in self.db.get_tasks() if task["priority"].lower() == value.lower()]
         elif by == "category":
-            filtered_tasks = [task for task in self.tasks if task.get("category", "General").lower() == value.lower()]
+            filtered_tasks = [task for task in self.db.get_tasks() if task.get("category", "General").lower() == value.lower()]
         elif by == "due_date":
             now = datetime.now()
             if value == "today":
                 filtered_tasks = [
-                    task for task in self.tasks if datetime.strptime(task["deadline"], "%Y-%m-%d %H:%M:%S").date() == now.date()
+                    task for task in self.db.get_tasks() if datetime.strptime(task["deadline"], "%Y-%m-%d %H:%M:%S").date() == now.date()
                 ]
             elif value == "this_week":
                 week_start = now - timedelta(days=now.weekday())
                 week_end = week_start + timedelta(days=6)
                 filtered_tasks = [
-                    task for task in self.tasks
+                    task for task in self.db.get_tasks()
                     if week_start.date()
                     <= datetime.strptime(task["deadline"], "%Y-%m-%d %H:%M:%S").date()
                     <= week_end.date()
                 ]
             elif value == "this_month":
                 filtered_tasks = [
-                    task for task in self.tasks
+                    task for task in self.db.get_tasks()
                     if datetime.strptime(task["deadline"], "%Y-%m-%d %H:%M:%S").month == now.month
                 ]
 
@@ -624,6 +614,55 @@ class TaskPlanner:
                     f"(Deadline: {task['deadline']}) - Status: {status}{overdue}"
                 )
 
+class TaskDatabase:
+    def __init__(self, db_file="tasks.db"):
+        self.db_file = db_file
+        self.connection = sqlite3.connect(self.db_file, check_same_thread=False)
+        self.cursor = self.connection.cursor()
+        self.create_table()
+        
+    def get_connection(self):
+        """Creates a new SQLite connection for the current thread."""
+        return sqlite3.connect(self.db_file)
+
+    def create_table(self):
+        self.cursor.execute("""
+        CREATE TABLE IF NOT EXISTS tasks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            deadline TEXT NOT NULL,
+            category TEXT DEFAULT 'General',
+            priority TEXT DEFAULT 'Medium',
+            status TEXT DEFAULT 'pending',
+            created_at TEXT NOT NULL
+        )
+        """)
+        self.connection.commit()
+
+    def add_task(self, name, deadline, category, priority):
+        self.cursor.execute("""
+        INSERT INTO tasks (name, deadline, category, priority, created_at)
+        VALUES (?, ?, ?, ?, ?)
+        """, (name, deadline, category, priority, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+        self.connection.commit()
+
+    def get_tasks(self):
+        """Fetches all tasks using a thread-safe connection."""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM tasks")
+            return cursor.fetchall()
+
+    def update_task(self, task_id, field, value):
+        self.cursor.execute(f"UPDATE tasks SET {field} = ? WHERE id = ?", (value, task_id))
+        self.connection.commit()
+
+    def delete_task(self, task_id):
+        self.cursor.execute("DELETE FROM tasks WHERE id = ?", (task_id,))
+        self.connection.commit()
+
+    def close(self):
+        self.connection.close()
 
 # Background thread to periodically check deadlines
 def start_deadline_checker(planner):
