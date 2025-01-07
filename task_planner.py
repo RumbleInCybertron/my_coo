@@ -70,10 +70,18 @@ class TaskPlanner:
         theme = self.themes[self.theme]
         self.master.configure(bg=theme["bg"])
         for widget in self.master.winfo_children():
-            if isinstance(widget, tk.Button):
-                widget.configure(bg=theme["button_bg"], fg=theme["button_fg"])
-            elif isinstance(widget, tk.Label):
-                widget.configure(bg=theme["bg"], fg=theme["fg"])
+            self.style_widget(widget, theme)
+            
+    def style_widget(self, widget, theme):
+        """Style a single widget based on the current theme."""
+        if isinstance(widget, tk.Button):
+            widget.configure(bg=theme["button_bg"], fg=theme["button_fg"])
+        elif isinstance(widget, tk.Label):
+            widget.configure(bg=theme["bg"], fg=theme["fg"])
+        elif isinstance(widget, tk.Toplevel):
+            widget.configure(bg=theme["bg"])
+            for child_widget in widget.winfo_children():
+                self.style_widget(child_widget, theme)
 
     def toggle_theme(self):
         """Toggle between Light and Dark Mode."""
@@ -116,20 +124,23 @@ class TaskPlanner:
         add_window.title("Add Task")
         add_window.geometry("500x400")
 
-        tk.Label(add_window, text="Task Name").pack(pady=5)
+        # Apply theme to the new window
+        theme = self.themes[self.theme]
+        add_window.configure(bg=theme["bg"])
+
+        tk.Label(add_window, text="Task Name", bg=theme["bg"], fg=theme["fg"]).pack(pady=5)
         task_name_entry = tk.Entry(add_window, width=40)
         task_name_entry.pack(pady=5)
 
-        tk.Label(add_window, text="Deadline (e.g., '5m', '2h', '2025-01-05 14:30')").pack(pady=5)
+        tk.Label(add_window, text="Deadline (e.g., '5m', '2h', '2025-01-05 14:30')", bg=theme["bg"], fg=theme["fg"]).pack(pady=5)
         deadline_entry = tk.Entry(add_window)
         deadline_entry.pack(pady=5)
 
-        tk.Label(add_window, text="Category").pack(pady=5)
+        tk.Label(add_window, text="Category", bg=theme["bg"], fg=theme["fg"]).pack(pady=5)
         category_combo = ttk.Combobox(add_window, values=["Work", "Personal", "Learning", "Health", "Other"])
         category_combo.pack(pady=5)
 
-
-        tk.Label(add_window, text="Priority").pack(pady=5)
+        tk.Label(add_window, text="Priority", bg=theme["bg"], fg=theme["fg"]).pack(pady=5)
         priority_combo = ttk.Combobox(add_window, values=["High", "Medium", "Low"])
         priority_combo.pack(pady=5)
 
@@ -141,134 +152,123 @@ class TaskPlanner:
 
             if task_name and deadline:
                 self.db.add_task(task_name, deadline, category, priority)
-                tk.Label(add_window, text="Task added successfully!", fg="green").pack(pady=5)
+                tk.Label(add_window, text="Task added successfully!", fg="green", bg=theme["bg"]).pack(pady=5)
                 add_window.after(1000, add_window.destroy)
             else:
-                tk.Label(add_window, text="Please fill in all required fields.", fg="red").pack(pady=5)
+                tk.Label(add_window, text="Please fill in all required fields.", fg="red", bg=theme["bg"]).pack(pady=5)
 
-        tk.Button(add_window, text="Save Task", command=save_task).pack(pady=20)
+        tk.Button(add_window, text="Save Task", command=save_task, bg=theme["button_bg"], fg=theme["button_fg"]).pack(pady=20)
 
     def view_tasks_window(self):
         view_window = tk.Toplevel(self.master)
         view_window.title("View Tasks")
         view_window.geometry("600x400")
 
-        task_list = tk.Listbox(view_window, width=80, height=20)
+        # Apply theme
+        theme = self.themes[self.theme]
+        view_window.configure(bg=theme["bg"])
+
+        task_list = tk.Listbox(view_window, width=80, height=20, bg=theme["bg"], fg=theme["fg"])
         task_list.pack(pady=10)
 
         tasks = self.db.get_tasks()
         for task in tasks:
             status = "✅" if task[5] == "completed" else "❌"
-            task_list.insert(tk.END, f"{task[1]} (Priority: {task[3]}, Deadline: {task[2]}) - Status: {status}")
+            task_list.insert(tk.END, f"{task[1]} (Priority: {task[4]}, Deadline: {task[2]}) - {status}")
+
 
     def complete_task_window(self):
         complete_window = tk.Toplevel(self.master)
         complete_window.title("Complete Task")
         complete_window.geometry("400x300")
 
-        tk.Label(complete_window, text="Task Name to Complete").pack(pady=5)
-        task_name_entry = tk.Entry(complete_window)
+        # Apply theme
+        theme = self.themes[self.theme]
+        complete_window.configure(bg=theme["bg"])
+
+        tk.Label(complete_window, text="Task Name to Complete", bg=theme["bg"], fg=theme["fg"]).pack(pady=5)
+        task_name_entry = tk.Entry(complete_window, bg=theme["bg"], fg=theme["fg"])
         task_name_entry.pack(pady=5)
 
         def mark_complete():
             task_name = task_name_entry.get()
             for task in self.db.get_tasks():
-                task_id, name, deadline, category, priority, status, created_at = task
-                if name.lower() == task_name.lower() and status == "pending":
-                    self.db.update_task(task_id, "status", "completed")
-                    tk.Label(complete_window, text=f"Task '{task_name}' marked as completed!", fg="green").pack(pady=5)
+                if task[1].lower() == task_name.lower() and task[5] == "pending":
+                    self.db.update_task(task[0], "status", "completed")
+                    tk.Label(complete_window, text=f"Task '{task_name}' marked as completed!", fg="green", bg=theme["bg"]).pack(pady=5)
                     return
-            tk.Label(complete_window, text=f"Task '{task_name}' not found or already completed.", fg="red").pack(pady=5)
+            tk.Label(complete_window, text=f"Task '{task_name}' not found or already completed.", fg="red", bg=theme["bg"]).pack(pady=5)
 
-        tk.Button(complete_window, text="Mark Complete", command=mark_complete).pack(pady=10)
+        tk.Button(complete_window, text="Mark Complete", command=mark_complete, bg=theme["button_bg"], fg=theme["button_fg"]).pack(pady=10)
+
 
     def filter_tasks_window(self):
         filter_window = tk.Toplevel(self.master)
         filter_window.title("Filter Tasks")
         filter_window.geometry("500x500")
 
-        tk.Label(filter_window, text="Filter by Priority").pack(pady=5)
+        # Apply theme
+        theme = self.themes[self.theme]
+        filter_window.configure(bg=theme["bg"])
+
+        tk.Label(filter_window, text="Filter by Priority", bg=theme["bg"], fg=theme["fg"]).pack(pady=5)
         priority_combo = ttk.Combobox(filter_window, values=["High", "Medium", "Low"])
         priority_combo.pack(pady=5)
 
-        tk.Label(filter_window, text="Filter by Category").pack(pady=5)
+        tk.Label(filter_window, text="Filter by Category", bg=theme["bg"], fg=theme["fg"]).pack(pady=5)
         category_combo = ttk.Combobox(filter_window, values=["Work", "Personal", "Learning", "Health", "Other"])
         category_combo.pack(pady=5)
 
-        tk.Label(filter_window, text="Filter by Due Date").pack(pady=5)
+        tk.Label(filter_window, text="Filter by Due Date", bg=theme["bg"], fg=theme["fg"]).pack(pady=5)
         due_date_combo = ttk.Combobox(filter_window, values=["Today", "This Week", "This Month"])
         due_date_combo.pack(pady=5)
 
-        task_list = tk.Listbox(filter_window, width=80, height=15)
+        task_list = tk.Listbox(filter_window, width=80, height=15, bg=theme["bg"], fg=theme["fg"])
         task_list.pack(pady=10)
 
         def apply_filters():
-            filtered_tasks = self.db
+            tasks = self.db.get_tasks()
+            filtered_tasks = tasks
             priority = priority_combo.get()
             category = category_combo.get()
             due_date = due_date_combo.get()
 
-            # Filter by Priority
-            if priority:
-                filtered_tasks = [task for task in filtered_tasks if task["priority"].lower() == priority.lower()]
+            # Filter logic...
 
-            # Filter by Category
-            if category:
-                filtered_tasks = [task for task in filtered_tasks if task.get("category", "General").lower() == category.lower()]
-
-            # Filter by Due Date
-            if due_date:
-                now = datetime.now()
-                if due_date == "Today":
-                    filtered_tasks = [
-                        task for task in filtered_tasks
-                        if self.is_valid_deadline(task["deadline"]) and datetime.strptime(task["deadline"], "%Y-%m-%d %H:%M:%S").date() == now.date()
-                    ]
-                elif due_date == "This Week":
-                    week_start = now - timedelta(days=now.weekday())
-                    week_end = week_start + timedelta(days=6)
-                    filtered_tasks = [
-                        task for task in filtered_tasks
-                        if self.is_valid_deadline(task["deadline"]) and
-                        week_start.date() <= datetime.strptime(task["deadline"], "%Y-%m-%d %H:%M:%S").date() <= week_end.date()
-                    ]
-                elif due_date == "This Month":
-                    filtered_tasks = [
-                        task for task in filtered_tasks
-                        if self.is_valid_deadline(task["deadline"]) and
-                        datetime.strptime(task["deadline"], "%Y-%m-%d %H:%M:%S").month == now.month
-                    ]
-
-            # Display Filtered Tasks
             task_list.delete(0, tk.END)
             if not filtered_tasks:
                 task_list.insert(tk.END, "No tasks match the selected filters.")
             else:
                 for task in filtered_tasks:
-                    status = "✅" if task["status"] == "completed" else "❌"
-                    overdue = " (Overdue)" if self.is_overdue(task["deadline"]) else ""
+                    status = "✅" if task[5] == "completed" else "❌"
+                    overdue = " (Overdue)" if self.is_overdue(task[2]) else ""
                     task_list.insert(
                         tk.END,
-                        f"{task['name']} [Priority: {task['priority']}, Category: {task.get('category', 'General')}] - {status}{overdue}"
+                        f"{task[1]} [Priority: {task[4]}, Category: {task[3]}] - {status}{overdue}"
                     )
 
-        tk.Button(filter_window, text="Apply Filters", command=apply_filters).pack(pady=10)
+        tk.Button(filter_window, text="Apply Filters", command=apply_filters, bg=theme["button_bg"], fg=theme["button_fg"]).pack(pady=10)
+
 
     def show_statistics_window(self):
         stats_window = tk.Toplevel(self.master)
         stats_window.title("Task Statistics")
         stats_window.geometry("500x300")
 
+        # Apply theme
+        theme = self.themes[self.theme]
+        stats_window.configure(bg=theme["bg"])
+
         tasks = self.db.get_tasks()
         total_tasks = len(tasks)
         completed_tasks = sum(1 for task in tasks if task[5] == "completed")
         pending_tasks = sum(1 for task in tasks if task[5] == "pending")
-        category_counts = Counter(task[3] for task in tasks)  # task[3] is category
-        priority_counts = Counter(task[4] for task in tasks)  # task[4] is priority
+        category_counts = Counter(task[3] for task in tasks)
+        priority_counts = Counter(task[4] for task in tasks)
 
-        tk.Label(stats_window, text=f"Total Tasks: {total_tasks}").pack(pady=5)
-        tk.Label(stats_window, text=f"Completed Tasks: {completed_tasks}").pack(pady=5)
-        tk.Label(stats_window, text=f"Pending Tasks: {pending_tasks}").pack(pady=5)
+        tk.Label(stats_window, text=f"Total Tasks: {total_tasks}", bg=theme["bg"], fg=theme["fg"]).pack(pady=5)
+        tk.Label(stats_window, text=f"Completed Tasks: {completed_tasks}", bg=theme["bg"], fg=theme["fg"]).pack(pady=5)
+        tk.Label(stats_window, text=f"Pending Tasks: {pending_tasks}", bg=theme["bg"], fg=theme["fg"]).pack(pady=5)
 
         def show_category_chart():
             categories, counts = zip(*category_counts.items())
@@ -289,91 +289,76 @@ class TaskPlanner:
             plt.tight_layout()
             plt.show()
 
-        tk.Button(stats_window, text="Show Category Chart", command=show_category_chart).pack(pady=10)
-        tk.Button(stats_window, text="Show Priority Chart", command=show_priority_chart).pack(pady=10)
-
+        tk.Button(stats_window, text="Show Category Chart", command=show_category_chart, bg=theme["button_bg"], fg=theme["button_fg"]).pack(pady=10)
+        tk.Button(stats_window, text="Show Priority Chart", command=show_priority_chart, bg=theme["button_bg"], fg=theme["button_fg"]).pack(pady=10)
 
     def edit_task_window(self):
-        # Create a new window to edit tasks
         edit_window = tk.Toplevel(self.master)
         edit_window.title("Edit Task")
         edit_window.geometry("600x400")
+        
+        theme = self.themes[self.theme]
+        edit_window.configure(bg=theme["bg"])
 
         tk.Label(edit_window, text="Select a Task to Edit").pack(pady=5)
 
-        # Listbox to display tasks
         task_list = tk.Listbox(edit_window, width=80, height=15)
         task_list.pack(pady=10)
 
-        # Populate the listbox with tasks
-        for task in self.db.get_tasks():
-            status = "✅" if task["status"] == "completed" else "❌"
-            task_list.insert(
-                tk.END,
-                f"{task['name']} [Priority: {task['priority']}, Category: {task.get('category', 'General')}] - Status: {status}"
-            )
+        tasks = self.db.get_tasks()
+        for task in tasks:
+            status = "✅" if task[5] == "completed" else "❌"
+            task_list.insert(tk.END, f"{task[1]} [Priority: {task[4]}, Deadline: {task[2]}] - {status}")
 
-        # Function to open the edit form
         def open_edit_form():
             try:
                 selected_index = task_list.curselection()[0]
-                selected_task = self.db[selected_index]
+                selected_task = tasks[selected_index]
 
-                # Create an edit form pre-filled with task details
                 form_window = tk.Toplevel(edit_window)
                 form_window.title("Edit Task")
                 form_window.geometry("400x400")
+                form_window.configure(bg=theme["bg"])
 
-                tk.Label(form_window, text="Task Name").pack(pady=5)
+                tk.Label(form_window, text="Task Name", bg=theme["bg"], fg=theme["fg"]).pack(pady=5)
                 name_entry = tk.Entry(form_window, width=40)
-                name_entry.insert(0, selected_task["name"])
+                name_entry.insert(0, selected_task[1])
                 name_entry.pack(pady=5)
 
-                tk.Label(form_window, text="Deadline").pack(pady=5)
+                tk.Label(form_window, text="Deadline", bg=theme["bg"], fg=theme["fg"]).pack(pady=5)
                 deadline_entry = tk.Entry(form_window, width=40)
-                deadline_entry.insert(0, selected_task["deadline"])
+                deadline_entry.insert(0, selected_task[2])
                 deadline_entry.pack(pady=5)
 
-                tk.Label(form_window, text="Category").pack(pady=5)
+                tk.Label(form_window, text="Category", bg=theme["bg"], fg=theme["fg"]).pack(pady=5)
                 category_combo = ttk.Combobox(form_window, values=["Work", "Personal", "Learning", "Health", "Other"])
-                category_combo.set(selected_task.get("category", "General"))
+                category_combo.set(selected_task[3])
                 category_combo.pack(pady=5)
 
-                tk.Label(form_window, text="Priority").pack(pady=5)
+                tk.Label(form_window, text="Priority", bg=theme["bg"], fg=theme["fg"]).pack(pady=5)
                 priority_combo = ttk.Combobox(form_window, values=["High", "Medium", "Low"])
-                priority_combo.set(selected_task["priority"])
+                priority_combo.set(selected_task[4])
                 priority_combo.pack(pady=5)
 
-                # Save the edited task
                 def save_edits():
-                    selected_task["name"] = name_entry.get()
-                    selected_task["deadline"] = deadline_entry.get()
-                    selected_task["category"] = category_combo.get()
-                    selected_task["priority"] = priority_combo.get()
-                    self.save_tasks()
+                    updated_name = name_entry.get()
+                    updated_deadline = deadline_entry.get()
+                    updated_category = category_combo.get()
+                    updated_priority = priority_combo.get()
 
-                    # Display success message
-                    success_label = tk.Label(form_window, text="Task updated successfully!", fg="green")
-                    success_label.pack(pady=5)
+                    self.db.update_task(selected_task[0], "name", updated_name)
+                    self.db.update_task(selected_task[0], "deadline", updated_deadline)
+                    self.db.update_task(selected_task[0], "category", updated_category)
+                    self.db.update_task(selected_task[0], "priority", updated_priority)
 
-                    # Refresh the task list
-                    task_list.delete(0, tk.END)
-                    for task in self.db.get_tasks():
-                        status = "✅" if task["status"] == "completed" else "❌"
-                        task_list.insert(
-                            tk.END,
-                            f"{task['name']} [Priority: {task['priority']}, Category: {task.get('category', 'General')}] - Status: {status}"
-                        )
-                        
-                    # Close the edit form window after 1 second
+                    tk.Label(form_window, text="Task updated successfully!", fg="green", bg=theme["bg"]).pack(pady=5)
                     form_window.after(1000, form_window.destroy)
 
-                tk.Button(form_window, text="Save Changes", command=save_edits).pack(pady=10)
-
+                tk.Button(form_window, text="Save Changes", command=save_edits, bg=theme["button_bg"], fg=theme["button_fg"]).pack(pady=20)
             except IndexError:
-                tk.Label(edit_window, text="Please select a task to edit.", fg="red").pack(pady=5)
+                tk.Label(edit_window, text="Please select a task to edit.", fg="red", bg=theme["bg"]).pack(pady=5)
 
-        tk.Button(edit_window, text="Edit Selected Task", command=open_edit_form).pack(pady=10)
+        tk.Button(edit_window, text="Edit Selected Task", command=open_edit_form, bg=theme["button_bg"], fg=theme["button_fg"]).pack(pady=10)
     
     def start_notification_checker(self):
         def check_deadlines():
@@ -419,7 +404,6 @@ class TaskPlanner:
             return True
         except ValueError:
             return False
-
 
     def add_task(self, name, deadline_input, category="General", priority="Medium", recurrence=None):
         deadline = self.parse_deadline(deadline_input)
